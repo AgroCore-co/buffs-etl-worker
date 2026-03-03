@@ -71,12 +71,15 @@ go mod tidy
 ### Rodar o Worker
 
 ```bash
+# Copiar .env.example para .env
+cp .env.example .env
+
 # Desenvolvimento (com RabbitMQ em localhost)
 go run ./cmd/worker/main.go
 
-# Com variáveis de ambiente customizadas
-export RABBITMQ_URL="amqp://user:pass@rabbitmq-host:5672/"
-export RABBITMQ_QUEUE="custom_queue"
+# Com variáveis de ambiente customizadas via CLI
+RABBITMQ_URL="amqp://user:pass@rabbitmq-host:5672/" \
+RABBITMQ_QUEUE="custom_queue" \
 go run ./cmd/worker/main.go
 ```
 
@@ -88,6 +91,13 @@ go build -o bin/worker ./cmd/worker
 ```
 
 ## 🔧 Variáveis de Ambiente
+
+Crie um arquivo `.env` na raiz do projeto baseado em `.env.example`:
+
+```bash
+cp .env.example .env
+# Edite .env com suas credenciais reais
+```
 
 | Variável | Padrão | Descrição |
 |----------|--------|-----------|
