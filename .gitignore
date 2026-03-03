@@ -1,0 +1,43 @@
+# Binários e executáveis
+*.exe
+*.exe~
+*.dll
+*.so
+*.so.*
+*.dylib
+*.test
+*.out
+
+# Diretórios de build
+/bin/
+/dist/
+/build/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Ambientes locais
+.env
+.env.local
+.env.*.local
+
+# Dependências (se usar vendoring)
+/vendor/
+
+# Sistemas operacionais
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Ferramentas de desenvolvimento
+*.pprof
+cpu.prof
+mem.prof
