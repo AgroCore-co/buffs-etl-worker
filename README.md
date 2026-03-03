@@ -58,36 +58,67 @@ cmd/
 ### Pré-requisitos
 
 - Go 1.25+
-- RabbitMQ rodando (use Docker ou instale localmente)
-- PostgreSQL (para próximas fases)
+- RabbitMQ rodando
+- Docker + Docker Compose (para modo containerizado)
 
-### Instalar Dependências
-
-```bash
-go mod download
-go mod tidy
-```
-
-### Rodar o Worker
+### Instalação Local (Development)
 
 ```bash
-# Copiar .env.example para .env
+# 1. Clonar repositório
+git clone https://github.com/AgroCore-co/buffs-etl-worker.git
+cd buffs-etl-worker
+
+# 2. Configurar variáveis de ambiente
 cp .env.example .env
 
-# Desenvolvimento (com RabbitMQ em localhost)
-go run ./cmd/worker/main.go
+# 3. Instalar dependências Go
+go mod download
+go mod tidy
 
-# Com variáveis de ambiente customizadas via CLI
-RABBITMQ_URL="amqp://user:pass@rabbitmq-host:5672/" \
-RABBITMQ_QUEUE="custom_queue" \
+# 4. Se RabbitMQ não estiver rodando, subir via Docker:
+docker run -d \
+  --name rabbitmq \
+  -p 5672:5672 \
+  -p 15672:15672 \
+  rabbitmq:3.13-management-alpine
+
+# 5. Executar o worker
 go run ./cmd/worker/main.go
 ```
 
-### Compilar para Produção
+### Instalação com Docker (Production-ready)
+
+#### Opção A: Worker + API Principal Juntos (Recomendado)
 
 ```bash
-go build -o bin/worker ./cmd/worker
-./bin/worker
+# 1. Subir API principal primeiro
+cd buffs-api
+docker-compose -f infra/docker-compose.yml up -d
+
+# 2. Subir o worker (conecta no RabbitMQ da API via network interna)
+cd ../buffs-etl-worker
+docker-compose up -d
+
+# 3. Verificar logs
+docker-compose logs -f buffs-worker
+
+# 4. Parar tudo
+docker-compose down
+```
+
+#### Opção B: Worker Standalone com RabbitMQ Remoto
+
+```bash
+# Editar .env com RABBITMQ_URL para um servidor remoto
+export RABBITMQ_URL="amqp://admin:admin@rabbitmq-server.com:5672/"
+
+# Build e run
+docker build -t buffs-etl-worker .
+docker run -d \
+  -e RABBITMQ_URL="$RABBITMQ_URL" \
+  -e RABBITMQ_QUEUE="excel_processing_queue" \
+  --name buffs-worker \
+  buffs-etl-worker
 ```
 
 ## 🔧 Variáveis de Ambiente
@@ -101,8 +132,28 @@ cp .env.example .env
 
 | Variável | Padrão | Descrição |
 |----------|--------|-----------|
-| `RABBITMQ_URL` | `amqp://guest:guest@localhost:5672/` | Connection string AMQP |
+| `RABBITMQ_URL` | `amqp://admin:admin@localhost:5672/` | Connection string AMQP. Use `rabbitmq:5672` como host quando rodando via Docker (network interna) |
 | `RABBITMQ_QUEUE` | `excel_processing_queue` | Nome da fila a consumir |
+
+### Credenciais
+
+As credenciais RabbitMQ são definidas no `docker-compose.yml` da API principal:
+
+```yaml
+environment:
+  RABBITMQ_DEFAULT_USER: admin    # ← use isso
+  RABBITMQ_DEFAULT_PASS: admin    # ← use isso
+```
+
+**Para modo Docker (recomendado):**
+```env
+RABBITMQ_URL=amqp://admin:admin@rabbitmq:5672/
+```
+
+**Para modo Local (dev):**
+```env
+RABBITMQ_URL=amqp://admin:admin@localhost:5672/
+```
 
 ## 📋 Payload Esperado
 
@@ -124,39 +175,119 @@ O NestJS publica mensagens JSON neste formato:
 
 ## 🧪 Testar Localmente
 
-### 1. Rodar RabbitMQ com Docker
+### 1. Rodar Infrastructure (RabbitMQ via API Docker Compose)
 
 ```bash
-docker run -d \
-  --name rabbitmq \
-  -p 5672:5672 \
-  -p 15672:15672 \
-  rabbitmq:4-management
+# Usar o docker-compose da API principal
+cd buffs-api
+docker-compose -f infra/docker-compose.yml up -d rabbitmq
+
+# Aguarde ~40s para RabbitMQ estar pronto
+docker-compose -f infra/docker-compose.yml logs -f rabbitmq | grep "Server startup complete"
 ```
 
-Acesse dashboard: http://localhost:15672 (guest:guest)
+Acesse dashboard RabbitMQ: http://localhost:15672 (admin:admin)
 
-### 2. Publicar Mensagem de Teste
+### 2. Iniciar o Worker
 
+**Opção A: Via Go (desenvolvimento)**
 ```bash
-# Via amqp-utils (se instalado)
-echo '{"file_path":"/tmp/test.xlsx","farm_id":"farm-1","user_id":"user-1"}' | \
-  amqp-publish -H localhost -e excel_processing_queue -b
-
-# Ou usar ferramenta como RabbitMQ Admin UI
-```
-
-### 3. Observar Consumer
-
-```bash
+cd buffs-etl-worker
+export RABBITMQ_URL="amqp://admin:admin@localhost:5672/"
 go run ./cmd/worker/main.go
-# Esperado:
+```
+
+**Opção B: Via Docker (production-like)**
+```bash
+cd buffs-etl-worker
+docker-compose up -d
+
+# Ver logs
+docker-compose logs -f buffs-worker
+```
+
+### 3. Publicar Mensagem de Teste
+
+```bash
+# Via amqp-utils (Linux)
+echo '{"file_path":"/tmp/test.xlsx","farm_id":"farm-1","user_id":"user-1"}' | \
+  amqp-publish -u admin -p admin -H localhost -e excel_processing_queue -b
+
+# Ou usar RabbitMQ Admin UI (Browser)
+# 1. Ir em http://localhost:15672
+# 2. Queue → excel_processing_queue → Publish Message
+# 3. Copiar/colar o JSON acima
+```
+
+### 4. Observar Consumer Processar
+
+```bash
+# Esperado no terminal do worker:
 # [RabbitMQ] Conexão estabelecida com sucesso
 # [RabbitMQ] Consumer ativo | Aguardando mensagens na fila 'excel_processing_queue'...
 # [RabbitMQ] Mensagem recebida | FarmID: farm-1 | UserID: user-1 | Arquivo: /tmp/test.xlsx
 # [Handler] Processando planilha: /tmp/test.xlsx | Fazenda: farm-1 | Usuário: user-1
 # [RabbitMQ] Mensagem processada com sucesso | FarmID: farm-1
 ```
+
+## 🐛 Troubleshooting
+
+### Erro: "username or password not allowed"
+
+**Causa:** Credenciais RabbitMQ incorretas na `RABBITMQ_URL`.
+
+**Solução:**
+```bash
+# Verifique as credenciais do docker-compose da API
+cat ../buffs-api/infra/docker-compose.yml | grep RABBITMQ_DEFAULT
+
+# Sua .env deve usar as mesmas credenciais:
+RABBITMQ_URL=amqp://admin:admin@localhost:5672/
+```
+
+### Erro: "Cannot connect to RabbitMQ"
+
+**Causa:** RabbitMQ não está rodando ou não está acessível.
+
+**Solução:**
+```bash
+# Verificar se RabbitMQ está rodando
+docker ps | grep rabbitmq
+
+# Testar conexão
+docker exec buffs-rabbitmq rabbitmq-diagnostics ping
+# Esperado: "pong"
+
+# Ver logs de erro
+docker-compose -f infra/docker-compose.yml logs rabbitmq
+```
+
+### Erro: "Network not found" (ao rodar em Docker)
+
+**Causa:** O worker está tentando se conectar mas a network do docker-compose da API não existe.
+
+**Solução:**
+```bash
+# Subir a API PRIMEIRO para criar a network
+cd buffs-api
+docker-compose -f infra/docker-compose.yml up -d
+
+# Depois subir o worker
+cd ../buffs-etl-worker
+docker-compose up -d
+```
+
+### Worker processa mas recebe erro do handler
+
+**Causa:** Handler retorna erro (implementação futura).
+
+**Comportamento esperado:**
+```
+[RabbitMQ] Erro ao processar mensagem (reenfileirando): <erro>
+# Mensagem volta para a fila e será reprocessada
+```
+
+Isso é normal durante desenvolvimento da lógica de ETL.
 
 ## 📚 Próximas Fases
 

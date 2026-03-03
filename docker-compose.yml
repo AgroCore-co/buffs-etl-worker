@@ -1,0 +1,67 @@
+version: '3.8'
+
+# ========================================
+# BUFFS ETL Worker - Docker Compose
+# ========================================
+# Roda o worker junto com a API principal (buffs-api).
+#
+# O worker consome mensagens do RabbitMQ da API sobre
+# processamento de planilhas Excel de produção pecuária.
+#
+# Modo de Uso:
+#
+# 1️⃣ Subir TUDO (API + RabbitMQ + Worker) de uma vez:
+#    cd /path/to/buffs-api
+#    docker-compose -f infra/docker-compose.yml up -d
+#    cd ../buffs-etl-worker
+#    docker-compose -f docker-compose.yml up -d
+#
+# 2️⃣ Ou criar um docker-compose.override.yml na raiz do projeto
+#    que combina ambos os serviços
+#
+# 3️⃣ Ver logs do worker:
+#    docker-compose -f docker-compose.yml logs -f buffs-worker
+#
+# ========================================
+
+services:
+  # ========================================
+  # BUFFS ETL Worker - Go
+  # ========================================
+  buffs-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: buffs-etl-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Conecta no RabbitMQ da API principal (hostname interno Docker)
+      RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672/
+      RABBITMQ_QUEUE: excel_processing_queue
+    depends_on:
+      # Aguarda RabbitMQ estar saudável antes de iniciar o worker
+      # RabbitMQ é provido pelo docker-compose.yml da API
+      - rabbitmq
+    networks:
+      - buffs-network
+    # Healthcheck simples (verifica se o processo está rodando)
+    healthcheck:
+      test: ["CMD", "ps", "aux"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# ========================================
+# Networks (deve ser a mesma da API)
+# ========================================
+networks:
+  buffs-network:
+    external: true
+    name: buffs-network
+
+# NOTA: RabbitMQ é provido pelo docker-compose.yml da API principal.
+# Não declaramos aqui para evitar conflitos/duplicatas.
+# O worker se conecta ao rabbitmq já existente via network interna.
