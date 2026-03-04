@@ -10,12 +10,24 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jaobarreto/buffs-etl-worker/internal/config"
 	"github.com/jaobarreto/buffs-etl-worker/internal/domain"
+	"github.com/jaobarreto/buffs-etl-worker/internal/excel"
 	"github.com/jaobarreto/buffs-etl-worker/internal/infrastructure/messaging"
+	"github.com/jaobarreto/buffs-etl-worker/internal/port"
+	"github.com/jaobarreto/buffs-etl-worker/internal/repository"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// ─── Carrega variáveis de ambiente do arquivo .env (se existir) ──────
+	// Em produção/Docker, as vars são injetadas diretamente pelo container.
+	// godotenv.Load() falha silenciosamente se .env não existir.
+	if err := godotenv.Load(); err != nil {
+		log.Println("[INFO] Arquivo .env não encontrado. Usando variáveis de ambiente do sistema ou fallbacks.")
+	}
+
 	log.Println("=== BUFFS ETL Worker ===")
 	log.Println("Iniciando worker de processamento de planilhas...")
 
@@ -43,21 +55,41 @@ func main() {
 		cancel()
 	}()
 
-	// ─── Handler temporário (stub) ───────────────────────────────────────
-	// TODO: Substituir por um Use Case real que faz parse da planilha com
-	// Excelize e bulk insert no PostgreSQL via Goroutines.
+	// ─── Conecta ao PostgreSQL (para lookup de brincos) ─────────────────
+	var brincoLoader port.BrincoLoader
+	if cfg.DatabaseURL != "" {
+		pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+		if err != nil {
+			log.Fatalf("Erro fatal ao conectar ao PostgreSQL: %v", err)
+		}
+		defer pool.Close()
+		brincoLoader = repository.NewPostgresBrincoLoader(pool)
+		log.Println("Conexão PostgreSQL estabelecida para lookup de brincos.")
+	} else {
+		log.Println("[AVISO] DATABASE_URL não configurada. Resolução brinco→UUID desativada.")
+	}
+
+	// ─── Cria o processador de planilhas ─────────────────────────────────
+	processor := excel.NewProcessor(cfg.UploadBasePath, brincoLoader)
+	log.Printf("Upload base path: %s", cfg.UploadBasePath)
+
+	// ─── Handler de mensagens: orquestra o ETL completo ──────────────────
 	handler := func(ctx context.Context, msg domain.ExcelProcessingMessage) error {
-		log.Printf("[Handler] Processando planilha: %s | Fazenda: %s | Usuário: %s",
-			msg.FilePath, msg.FarmID, msg.UserID,
+		log.Printf("[Handler] Recebida mensagem para processar: %s | Propriedade: %s | Usuário: %s",
+			msg.FilePath, msg.PropriedadeID, msg.UsuarioID,
 		)
 
-		// Aqui entrará a lógica de ETL:
-		// 1. Ler arquivo Excel com excelize
-		// 2. Parsear linhas em structs do domínio
-		// 3. Bulk insert no PostgreSQL via goroutines
-		// 4. Notificar conclusão (opcional)
+		result, err := processor.Process(ctx, msg)
+		if err != nil {
+			log.Printf("[Handler] ERRO ao processar '%s': %v", msg.FilePath, err)
+			return err // NACK — volta para a fila / DLQ
+		}
 
-		return nil
+		log.Printf("[Handler] Processamento concluído: %d inseridos, %d ignorados, %d erros",
+			result.TotalInserted(), result.TotalSkipped(), len(result.AllErrors()),
+		)
+
+		return nil // ACK — mensagem processada com sucesso
 	}
 
 	// ─── Inicia o consumer (bloqueia até contexto ser cancelado) ─────────

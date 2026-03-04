@@ -1,12 +1,18 @@
 // Package config centraliza todas as configurações do worker,
 // lendo variáveis de ambiente com fallback para valores padrão de desenvolvimento.
+//
+// O arquivo .env é carregado automaticamente na inicialização do worker (cmd/worker/main.go)
+// usando github.com/joho/godotenv. Em produção/Docker, as variáveis são injetadas
+// diretamente pelo container e o .env não é necessário.
 package config
 
 import "os"
 
 // Config agrupa todas as configurações necessárias para o worker.
 type Config struct {
-	RabbitMQ RabbitMQConfig
+	RabbitMQ       RabbitMQConfig
+	UploadBasePath string
+	DatabaseURL    string
 }
 
 // RabbitMQConfig contém os parâmetros de conexão com o RabbitMQ.
@@ -30,6 +36,14 @@ func Load() *Config {
 			QueueName:         getEnv("RABBITMQ_QUEUE", "excel_processing_queue"),
 			ReconnectDelaySec: 5,
 		},
+		// Diretório base onde os uploads são salvos pelo NestJS.
+		// Em desenvolvimento local: caminho absoluto para buffs-api/temp/uploads
+		// Em Docker: /shared/uploads (bind mount compartilhado)
+		UploadBasePath: getEnv("UPLOAD_BASE_PATH", "../buffs-api/temp/uploads"),
+
+		// Connection string PostgreSQL para lookup de brincos.
+		// Se vazio, a resolução brinco→UUID fica desativada.
+		DatabaseURL: getEnv("DATABASE_URL", ""),
 	}
 }
 

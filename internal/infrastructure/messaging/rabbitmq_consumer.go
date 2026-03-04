@@ -215,8 +215,8 @@ func (c *RabbitMQConsumer) processDelivery(ctx context.Context, delivery amqp.De
 		return
 	}
 
-	log.Printf("[RabbitMQ] Mensagem recebida | FarmID: %s | UserID: %s | Arquivo: %s",
-		msg.FarmID, msg.UserID, msg.FilePath)
+	log.Printf("[RabbitMQ] Mensagem recebida | PropriedadeID: %s | UsuarioID: %s | Arquivo: %s",
+		msg.PropriedadeID, msg.UsuarioID, msg.FilePath)
 
 	// Delega ao handler (que futuramente executará a lógica de ETL)
 	if err := handler(ctx, msg); err != nil {
@@ -231,7 +231,7 @@ func (c *RabbitMQConsumer) processDelivery(ctx context.Context, delivery amqp.De
 		log.Printf("[RabbitMQ] Erro ao enviar ACK: %v", err)
 	}
 
-	log.Printf("[RabbitMQ] Mensagem processada com sucesso | FarmID: %s", msg.FarmID)
+	log.Printf("[RabbitMQ] Mensagem processada com sucesso | PropriedadeID: %s", msg.PropriedadeID)
 }
 
 // Close encerra a conexão com o RabbitMQ de forma graciosa.

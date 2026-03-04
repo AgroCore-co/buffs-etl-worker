@@ -4,13 +4,21 @@ package domain
 
 // ExcelProcessingMessage representa o payload da mensagem publicada pelo NestJS
 // no RabbitMQ quando um produtor faz upload de uma planilha Excel.
+//
+// Os campos JSON devem corresponder exatamente ao que o NestJS publica:
+//
+//	{ "file_path", "propriedade_id", "usuario_id", "timestamp" }
 type ExcelProcessingMessage struct {
-	// FilePath é o caminho do arquivo .xlsx salvo em disco (ou S3 futuramente).
+	// FilePath é o caminho relativo do arquivo .xlsx dentro de temp/uploads/.
+	// O caminho absoluto é resolvido no worker usando UPLOAD_BASE_PATH.
 	FilePath string `json:"file_path"`
 
-	// FarmID é o identificador único da fazenda associada ao upload.
-	FarmID string `json:"farm_id"`
+	// PropriedadeID é o UUID da propriedade rural associada ao upload.
+	PropriedadeID string `json:"propriedade_id"`
 
-	// UserID é o identificador do usuário que realizou o upload.
-	UserID string `json:"user_id"`
+	// UsuarioID é o UUID do usuário que realizou o upload.
+	UsuarioID string `json:"usuario_id"`
+
+	// Timestamp é a data/hora ISO 8601 em que a mensagem foi criada pelo NestJS.
+	Timestamp string `json:"timestamp"`
 }

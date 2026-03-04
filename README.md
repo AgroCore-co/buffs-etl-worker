@@ -70,6 +70,10 @@ cd buffs-etl-worker
 
 # 2. Configurar variáveis de ambiente
 cp .env.example .env
+# Edite .env para configurar:
+# - RABBITMQ_URL (credenciais do RabbitMQ)
+# - DATABASE_URL (opcional - para resolução brinco→UUID)
+# - UPLOAD_BASE_PATH (caminho dos uploads da API)
 
 # 3. Instalar dependências Go
 go mod download
@@ -80,11 +84,16 @@ docker run -d \
   --name rabbitmq \
   -p 5672:5672 \
   -p 15672:15672 \
+  -e RABBITMQ_DEFAULT_USER=admin \
+  -e RABBITMQ_DEFAULT_PASS=admin \
   rabbitmq:3.13-management-alpine
 
 # 5. Executar o worker
+# O arquivo .env é carregado automaticamente via godotenv
 go run ./cmd/worker/main.go
 ```
+
+> **💡 Nota:** O worker agora carrega o arquivo `.env` automaticamente na inicialização usando `godotenv`. Em produção/Docker, as variáveis são injetadas diretamente pelo container.
 
 ### Instalação com Docker (Production-ready)
 
@@ -132,8 +141,31 @@ cp .env.example .env
 
 | Variável | Padrão | Descrição |
 |----------|--------|-----------|
-| `RABBITMQ_URL` | `amqp://admin:admin@localhost:5672/` | Connection string AMQP. Use `rabbitmq:5672` como host quando rodando via Docker (network interna) |
+| `RABBITMQ_URL` | `amqp://guest:guest@localhost:5672/` | Connection string AMQP. Use `rabbitmq:5672` como host quando rodando via Docker (network interna) |
 | `RABBITMQ_QUEUE` | `excel_processing_queue` | Nome da fila a consumir |
+| `UPLOAD_BASE_PATH` | `../buffs-api/temp/uploads` | Diretório onde os arquivos Excel são salvos pela API. Em Docker: `/shared/uploads` |
+| `DATABASE_URL` | *(vazio)* | Connection string PostgreSQL para resolução `brinco→UUID`. Se vazio, abas dependentes (Pesagens, Sanitário) não processam FKs |
+
+### DATABASE_URL (Opcional)
+
+O worker pode resolver FKs de brinco para UUID consultando o PostgreSQL:
+
+**Supabase:**
+```env
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT_ID].supabase.co:5432/postgres
+```
+
+**PostgreSQL Local:**
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/buffs_db
+```
+
+**PostgreSQL via Docker:**
+```env
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/buffs_db
+```
+
+> **⚠️ Importante:** Se `DATABASE_URL` não for configurado, abas como **Pesagens**, **Sanitário**, **Reprodução** não conseguirão processar porque dependem da resolução `brinco → id_bufalo`. Apenas a aba **Animais** funcionará (ela insere os búfalos diretamente).
 
 ### Credenciais
 
