@@ -1,56 +1,131 @@
-// Package config centraliza todas as configurações do worker,
-// lendo variáveis de ambiente com fallback para valores padrão de desenvolvimento.
-//
-// O arquivo .env é carregado automaticamente na inicialização do worker (cmd/worker/main.go)
-// usando github.com/joho/godotenv. Em produção/Docker, as variáveis são injetadas
-// diretamente pelo container e o .env não é necessário.
+package config
+// Package config centraliza configurações do ETL BUFFS via Viper.
+// Todas as variáveis são prefixadas com BUFFS_ETL_ (ex: BUFFS_ETL_DB_URL).
 package config
 
-import "os"
+import (
+	"time"
 
-// Config agrupa todas as configurações necessárias para o worker.
-type Config struct {
-	RabbitMQ       RabbitMQConfig
-	UploadBasePath string
-	DatabaseURL    string
-}
+	"github.com/spf13/viper"
+)
 
-// RabbitMQConfig contém os parâmetros de conexão com o RabbitMQ.
-type RabbitMQConfig struct {
-	// URL é a connection string AMQP (ex: amqp://guest:guest@localhost:5672/).
-	URL string
+// Config agrupa todas as configurações do ETL.
 
-	// QueueName é o nome da fila que o consumer vai escutar.
-	QueueName string
 
-	// ReconnectDelaySec é o intervalo em segundos entre tentativas de reconexão.
-	ReconnectDelaySec int
-}
 
-// Load carrega as configurações a partir de variáveis de ambiente.
-// Utiliza valores padrão para facilitar o desenvolvimento local.
-func Load() *Config {
-	return &Config{
-		RabbitMQ: RabbitMQConfig{
-			URL:               getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
-			QueueName:         getEnv("RABBITMQ_QUEUE", "excel_processing_queue"),
-			ReconnectDelaySec: 5,
-		},
-		// Diretório base onde os uploads são salvos pelo NestJS.
-		// Em desenvolvimento local: caminho absoluto para buffs-api/temp/uploads
-		// Em Docker: /shared/uploads (bind mount compartilhado)
-		UploadBasePath: getEnv("UPLOAD_BASE_PATH", "../buffs-api/temp/uploads"),
 
-		// Connection string PostgreSQL para lookup de brincos.
-		// Se vazio, a resolução brinco→UUID fica desativada.
-		DatabaseURL: getEnv("DATABASE_URL", ""),
-	}
-}
 
-// getEnv retorna o valor da variável de ambiente ou o fallback fornecido.
-func getEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}	}		},			MaxImportsPerHour: v.GetInt("BUFFS_ETL_RATE_LIMIT_IMPORTS_PER_HOUR"),		RateLimit: RateLimitConfig{		},			AsyncThreshold: v.GetInt("BUFFS_ETL_ASYNC_THRESHOLD"),			Concurrency:    v.GetInt("BUFFS_ETL_WORKER_CONCURRENCY"),		Worker: WorkerConfig{		},			IncludeRefSheet: v.GetBool("BUFFS_ETL_INCLUDE_REF_SHEET"),		Export: ExportConfig{		},			TempDir:     v.GetString("BUFFS_ETL_TEMP_DIR"),			MaxFileSize: v.GetInt64("BUFFS_ETL_MAX_FILE_SIZE"),		Upload: UploadConfig{		},			Secret: v.GetString("BUFFS_ETL_JWT_SECRET"),		JWT: JWTConfig{		},			URL: v.GetString("BUFFS_ETL_REDIS_URL"),		Redis: RedisConfig{		},			MaxConnLifetime: connLifetime,			MinConns:        int32(v.GetInt("BUFFS_ETL_DB_MIN_CONNS")),			MaxConns:        int32(v.GetInt("BUFFS_ETL_DB_MAX_CONNS")),			URL:             v.GetString("BUFFS_ETL_DB_URL"),		DB: DBConfig{		},			WriteTimeout: writeTimeout,			ReadTimeout:  readTimeout,			Port:         v.GetInt("BUFFS_ETL_PORT"),		Server: ServerConfig{	return &Config{	connLifetime, _ := time.ParseDuration(v.GetString("BUFFS_ETL_DB_MAX_CONN_LIFETIME"))	writeTimeout, _ := time.ParseDuration(v.GetString("BUFFS_ETL_WRITE_TIMEOUT"))	readTimeout, _ := time.ParseDuration(v.GetString("BUFFS_ETL_READ_TIMEOUT"))	_ = v.ReadInConfig()	// Tenta ler o .env (ignora erro se não existir)	v.SetDefault("BUFFS_ETL_RATE_LIMIT_IMPORTS_PER_HOUR", 10)	v.SetDefault("BUFFS_ETL_ASYNC_THRESHOLD", 1000)	v.SetDefault("BUFFS_ETL_WORKER_CONCURRENCY", 5)	v.SetDefault("BUFFS_ETL_INCLUDE_REF_SHEET", true)	v.SetDefault("BUFFS_ETL_TEMP_DIR", "./temp/uploads")	v.SetDefault("BUFFS_ETL_MAX_FILE_SIZE", 50*1024*1024) // 50MB	v.SetDefault("BUFFS_ETL_JWT_SECRET", "")	v.SetDefault("BUFFS_ETL_REDIS_URL", "redis://localhost:6379")	v.SetDefault("BUFFS_ETL_DB_MAX_CONN_LIFETIME", "30m")	v.SetDefault("BUFFS_ETL_DB_MIN_CONNS", 5)	v.SetDefault("BUFFS_ETL_DB_MAX_CONNS", 20)	v.SetDefault("BUFFS_ETL_DB_URL", "postgresql://postgres:postgres@localhost:5432/buffs_db")	v.SetDefault("BUFFS_ETL_WRITE_TIMEOUT", "60s")	v.SetDefault("BUFFS_ETL_READ_TIMEOUT", "30s")	v.SetDefault("BUFFS_ETL_PORT", 3001)	// Defaults	v.SetEnvPrefix("BUFFS_ETL")	// Prefixo BUFFS_ETL_ para variáveis de ambiente	v.AutomaticEnv()	v.SetConfigType("env")	v.SetConfigFile(".env")	v := viper.New()func Load() *Config {// Load carrega a configuração a partir de variáveis de ambiente e .env.}	MaxImportsPerHour inttype RateLimitConfig struct {}	AsyncThreshold int // linhas acima desse valor → processamento assíncrono	Concurrency    inttype WorkerConfig struct {}	IncludeRefSheet bool // incluir aba ANIMAIS_REF por padrãotype ExportConfig struct {}	TempDir     string // diretório temporário para uploads	MaxFileSize int64  // bytestype UploadConfig struct {}	Secret stringtype JWTConfig struct {}	URL stringtype RedisConfig struct {}	MaxConnLifetime time.Duration	MinConns        int32	MaxConns        int32	URL             stringtype DBConfig struct {}	WriteTimeout time.Duration	ReadTimeout  time.Duration	Port         inttype ServerConfig struct {}	RateLimit RateLimitConfig	Worker   WorkerConfig	Export   ExportConfig	Upload   UploadConfig	JWT      JWTConfig	Redis    RedisConfig	DB       DBConfig	Server   ServerConfigtype Config struct {

@@ -41,3 +41,24 @@ Thumbs.db
 *.pprof
 cpu.prof
 mem.prof
+
+# Cobertura de testes
+coverage.out
+coverage.html
+
+# Templates de planilha (gerados ou baixados)
+/templates/*.xlsx
+
+# Uploads temporários
+/tmp/
+/temp/
+
+# Logs locais
+*.log
+
+# Go workspace (se usar multi-module)
+go.work
+go.work.sum
+
+# Redis dump
+dump.rdb
