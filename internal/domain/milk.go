@@ -1,45 +1,41 @@
 package domain
 
+import "time"
 
+// MilkRecord representa um registro de pesagem de leite (tabela dadoslactacao).
+type MilkRecord struct {
+	IDBufala        string    // FK → bufalo.id_bufalo (resolvido de brinco)
+	IDUsuario       string    // FK → usuario.id_usuario
+	IDPropriedade   string    // FK → propriedade.id_propriedade
+	IDCicloLactacao string    // FK → ciclolactacao.id_ciclo_lactacao (opcional)
+	QtOrdenha       float64   // Quantidade produzida em litros
+	Periodo         string    // M=Manhã, T=Tarde, U=Único
+	Ocorrencia      string    // Observação livre (máx. 50 chars)
+	DtOrdenha       time.Time // Data da ordenha
+}
 
+// Table retorna o nome da tabela no PostgreSQL.
+func (MilkRecord) Table() string { return "dadoslactacao" }
 
+// Columns retorna as colunas para COPY INTO (sem id e timestamps).
+func (MilkRecord) Columns() []string {
+	return []string{
+		"id_bufala", "id_usuario", "id_propriedade",
+		"qt_ordenha", "periodo", "ocorrencia", "dt_ordenha",
+	}
+}
 
+// Values retorna os valores na mesma ordem de Columns().
+func (r MilkRecord) Values() []any {
+	return []any{
+		r.IDBufala, r.IDUsuario, r.IDPropriedade,
+		r.QtOrdenha, r.Periodo, nullIfEmpty(r.Ocorrencia), r.DtOrdenha,
+	}
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-}	return s	}		return nil	if s == "" {func nullIfEmpty(s string) any {}	}		r.QtOrdenha, r.Periodo, nullIfEmpty(r.Ocorrencia), r.DtOrdenha,		r.IDBufala, r.IDUsuario, r.IDPropriedade,	return []any{func (r MilkRecord) Values() []any {// Values retorna os valores na mesma ordem de Columns().}	}		"qt_ordenha", "periodo", "ocorrencia", "dt_ordenha",		"id_bufala", "id_usuario", "id_propriedade",	return []string{func (MilkRecord) Columns() []string {// Columns retorna as colunas para COPY INTO (sem id e timestamps).func (MilkRecord) Table() string { return "dadoslactacao" }// Table retorna o nome da tabela no PostgreSQL.}	DtOrdenha      time.Time // Data da ordenha	Ocorrencia     string    // Observação livre (máx. 50 chars)	Periodo        string    // M=Manhã, T=Tarde, U=Único	QtOrdenha      float64   // Quantidade produzida em litros	IDCicloLactacao string   // FK → ciclolactacao.id_ciclo_lactacao (opcional)	IDPropriedade  string    // FK → propriedade.id_propriedade	IDUsuario      string    // FK → usuario.id_usuario (do JWT)	IDBufala       string    // FK → bufalo.id_bufalo (resolvido de brinco)type MilkRecord struct {// MilkRecord representa um registro de pesagem de leite (tabela dadoslactacao).import "time"package domain// Structs puras sem dependência de infraestrutura.// Package domain contém as entidades centrais de negócio do ETL BUFFS.
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}

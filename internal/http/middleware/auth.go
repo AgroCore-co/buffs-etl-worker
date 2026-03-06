@@ -1,89 +1,39 @@
-package middleware
 // Package middleware contém os middlewares HTTP do ETL BUFFS.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-}	return v	v, _ := c.Locals(ContextKeyUserID).(string)func GetUserAuthID(c *fiber.Ctx) string {// GetUserAuthID extrai o auth_id do usuário do contexto Fiber.}	}		return c.Next()		c.Locals(ContextKeyEmail, claims.Email)		c.Locals(ContextKeyUserID, claims.Sub)		// Armazena dados do usuário no contexto		}			})				Message: "Claims do token inválidas",				Code:    "UNAUTHORIZED",			return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{		if !ok || claims.Sub == "" {		claims, ok := token.Claims.(*AuthClaims)		}			})				Message: "Token inválido ou expirado",				Code:    "UNAUTHORIZED",			return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{			logger.Debug("Token JWT inválido", zap.Error(err))		if err != nil || !token.Valid {		})			return []byte(secret), nil			}				return nil, jwt.ErrSignatureInvalid			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {			// Supabase usa HMAC (HS256)		token, err := jwt.ParseWithClaims(tokenStr, &AuthClaims{}, func(t *jwt.Token) (any, error) {		// Parse e validação do JWT		tokenStr := parts[1]		}			})				Message: "Formato de token inválido. Esperado: Bearer <token>",				Code:    "UNAUTHORIZED",			return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{		if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {		parts := strings.SplitN(authHeader, " ", 2)		// Extrai o token do header "Bearer <token>"		}			})				Message: "Token de autenticação não fornecido",				Code:    "UNAUTHORIZED",			return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{		if authHeader == "" {		authHeader := c.Get("Authorization")	return func(c *fiber.Ctx) error {func JWTAuth(secret string, logger *zap.Logger) fiber.Handler {// Valida o token usando o secret do Supabase e extrai user info.// JWTAuth cria um middleware de autenticação JWT.)	ContextKeyEmail  = "user_email"	ContextKeyUserID = "user_auth_id"const (// contextKey para armazenar dados do usuário no contexto Fiber.}	jwt.RegisteredClaims	Role  string `json:"role"`	Email string `json:"email"`	Sub   string `json:"sub"`type AuthClaims struct {// AuthClaims são as claims do JWT Supabase.)	"go.uber.org/zap"	"github.com/jaobarreto/buffs-etl-worker/internal/dto"	"github.com/golang-jwt/jwt/v5"	"github.com/gofiber/fiber/v2"	"strings"import (package middleware
+package middleware
+
+import (
+	"net/http"
+
+	"github.com/jaobarreto/buffs-etl-worker/internal/dto"
+	"go.uber.org/zap"
+)
+
+// InternalKeyAuth cria um middleware que valida o header X-Internal-Key.
+// Usado para autenticação inter-serviço (BUFFS API → ETL Worker).
+func InternalKeyAuth(key string, logger *zap.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			provided := r.Header.Get("X-Internal-Key")
+
+			if provided == "" {
+				logger.Debug("Requisição sem X-Internal-Key")
+				writeJSON(w, http.StatusUnauthorized, dto.ErrorResponse{
+					Code:    "UNAUTHORIZED",
+					Message: "Header X-Internal-Key não fornecido",
+				})
+				return
+			}
+
+			if provided != key {
+				logger.Warn("X-Internal-Key inválida")
+				writeJSON(w, http.StatusUnauthorized, dto.ErrorResponse{
+					Code:    "UNAUTHORIZED",
+					Message: "X-Internal-Key inválida",
+				})
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}

@@ -47,7 +47,7 @@ clean:
 docker-build:
 	docker build -t $(APP_NAME):latest .
 
-## docker-up: Sobe o stack completo (ETL + Redis)
+## docker-up: Sobe o stack completo (ETL)
 docker-up:
 	docker-compose up -d
 

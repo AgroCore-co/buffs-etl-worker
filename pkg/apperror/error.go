@@ -12,16 +12,15 @@ type Code string
 
 const (
 	// Erros fatais (abort total)
-	CodeFileCorrupted     Code = "FILE_CORRUPTED"
-	CodeInvalidFormat     Code = "INVALID_FORMAT"
-	CodeMissingColumn     Code = "MISSING_COLUMN"
-	CodeUnauthorized      Code = "UNAUTHORIZED"
-	CodeForbidden         Code = "FORBIDDEN"
-	CodePropertyNotFound  Code = "PROPERTY_NOT_FOUND"
-	CodeRateLimitExceeded Code = "RATE_LIMIT_EXCEEDED"
-	CodeInternalError     Code = "INTERNAL_ERROR"
-	CodeFileTooLarge      Code = "FILE_TOO_LARGE"
-	CodeJobNotFound       Code = "JOB_NOT_FOUND"
+	CodeFileCorrupted    Code = "FILE_CORRUPTED"
+	CodeInvalidFormat    Code = "INVALID_FORMAT"
+	CodeMissingColumn    Code = "MISSING_COLUMN"
+	CodeUnauthorized     Code = "UNAUTHORIZED"
+	CodeForbidden        Code = "FORBIDDEN"
+	CodePropertyNotFound Code = "PROPERTY_NOT_FOUND"
+	CodeInternalError    Code = "INTERNAL_ERROR"
+	CodeFileTooLarge     Code = "FILE_TOO_LARGE"
+	CodeJobNotFound      Code = "JOB_NOT_FOUND"
 
 	// Erros por linha (continua o import)
 	CodeBrincoNotFound Code = "BRINCO_NOT_FOUND"
@@ -103,10 +102,6 @@ func BadRequest(code Code, msg string) *AppError {
 
 func NotFound(code Code, msg string) *AppError {
 	return &AppError{Code: code, Message: msg, Severity: SeverityFatal, HTTPCode: http.StatusNotFound}
-}
-
-func TooManyRequests(msg string) *AppError {
-	return &AppError{Code: CodeRateLimitExceeded, Message: msg, Severity: SeverityFatal, HTTPCode: http.StatusTooManyRequests}
 }
 
 func Internal(msg string, err error) *AppError {

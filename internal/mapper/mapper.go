@@ -25,9 +25,9 @@ type ColumnMap map[string]FieldMapping
 type PipelineType string
 
 const (
-	PipelineMilk         PipelineType = "milk"
-	PipelineWeight       PipelineType = "weight"
-	PipelineReproduction PipelineType = "reproduction"
+	PipelineMilk         PipelineType = "leite"
+	PipelineWeight       PipelineType = "pesagem"
+	PipelineReproduction PipelineType = "reproducao"
 )
 
 // ── Registries ──────────────────────────────────────────────────────────────
@@ -138,11 +138,13 @@ func GetMapForPipeline(pt PipelineType) (ColumnMap, []string) {
 	}
 }
 
-// normalizeHeader normaliza um cabeçalho: lowercase, remove acentos, trim espaços.
+// normalizeHeader normaliza um cabeçalho: lowercase, remove acentos/pontuação, trim espaços.
 func normalizeHeader(s string) string {
 	s = strings.TrimSpace(s)
 	s = strings.ToLower(s)
 	s = removeAccents(s)
+	// Remove pontuação que não faz parte do conteúdo semântico (ex: "Qtd." → "Qtd")
+	s = strings.ReplaceAll(s, ".", "")
 	// Colapsa múltiplos espaços em um
 	s = strings.Join(strings.Fields(s), " ")
 	return s

@@ -3,6 +3,8 @@ version: '3.8'
 # ========================================
 # ETL BUFFS - Docker Compose
 # ========================================
+# Worker simples sem Redis — jobs in-memory.
+# ========================================
 
 services:
   etl-buffs:
@@ -17,38 +19,16 @@ services:
       - BUFFS_ETL_ENV=production
       - BUFFS_ETL_PORT=3001
       - BUFFS_ETL_DB_URL=${BUFFS_ETL_DB_URL}
-      - BUFFS_ETL_REDIS_URL=redis://redis:6379
-      - BUFFS_ETL_JWT_SECRET=${BUFFS_ETL_JWT_SECRET}
+      - BUFFS_ETL_INTERNAL_KEY=${BUFFS_ETL_INTERNAL_KEY}
       - BUFFS_ETL_TEMP_DIR=/app/temp/uploads
-      - BUFFS_ETL_WORKER_CONCURRENCY=5
       - BUFFS_ETL_ASYNC_THRESHOLD=1000
     volumes:
       - etl-uploads:/app/temp/uploads
-    depends_on:
-      redis:
-        condition: service_healthy
-    networks:
-      - buffs-network
-
-  redis:
-    image: redis:7-alpine
-    container_name: etl-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
     networks:
       - buffs-network
 
 volumes:
   etl-uploads:
-  redis-data:
 
 networks:
   buffs-network:

@@ -1,5 +1,5 @@
 // Package exporter gera planilhas Excel (.xlsx) a partir de dados do banco.
-// Cada domínio (milk, weight, reproduction) possui sua própria query e formatação.
+// Cada domínio (leite, pesagem, reprodução) possui sua própria query e formatação.
 package exporter
 
 import (
@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// ExportParams contém os filtros para exportação.
+// ExportParams contém os filtros para exportação (nomes em português).
 type ExportParams struct {
 	PropertyID string
 	GroupID    string
@@ -40,9 +40,15 @@ func New(pool *pgxpool.Pool, logger *zap.Logger) *Exporter {
 
 // ExportMilk gera uma planilha de pesagem de leite com dados do banco.
 func (e *Exporter) ExportMilk(ctx context.Context, params ExportParams) (*excelize.File, error) {
-	e.logger.Info("Exportando planilha de leite", zap.String("property_id", params.PropertyID))
+	e.logger.Info("Exportando planilha de leite",
+		zap.String("property_id", params.PropertyID),
+		zap.String("group_id", params.GroupID),
+		zap.Time("from", params.From),
+		zap.Time("to", params.To),
+	)
 
 	query, args := buildMilkQuery(params)
+	e.logger.Info("Query de leite", zap.String("query", query), zap.Any("args", args))
 
 	rows, err := e.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -123,7 +129,7 @@ func buildMilkQuery(params ExportParams) (string, []any) {
 		idx++
 	}
 	if !params.To.IsZero() {
-		q += fmt.Sprintf(" AND dl.dt_ordenha <= $%d", idx)
+		q += fmt.Sprintf(" AND dl.dt_ordenha < $%d", idx)
 		args = append(args, params.To)
 		idx++
 	}
@@ -224,7 +230,7 @@ func buildWeightQuery(params ExportParams) (string, []any) {
 		idx++
 	}
 	if !params.To.IsZero() {
-		q += fmt.Sprintf(" AND dz.dt_registro <= $%d", idx)
+		q += fmt.Sprintf(" AND dz.dt_registro < $%d", idx)
 		args = append(args, params.To)
 		idx++
 	}
@@ -320,7 +326,7 @@ func buildReproductionQuery(params ExportParams) (string, []any) {
 		idx++
 	}
 	if !params.To.IsZero() {
-		q += fmt.Sprintf(" AND dr.dt_evento <= $%d", idx)
+		q += fmt.Sprintf(" AND dr.dt_evento < $%d", idx)
 		args = append(args, params.To)
 		idx++
 	}
@@ -381,85 +387,6 @@ func (e *Exporter) addRefSheet(ctx context.Context, f *excelize.File, propertyID
 	autoWidth(f, sheet, len(headers))
 }
 
-// ── Template Generation ─────────────────────────────────────────────────────
-
-// GenerateMilkTemplate gera uma planilha vazia de leite com validações.
-func (e *Exporter) GenerateMilkTemplate(ctx context.Context, propertyID string, includeRef bool) (*excelize.File, error) {
-	f := excelize.NewFile()
-	sheet := "DADOS"
-	idx, _ := f.NewSheet(sheet)
-	f.DeleteSheet("Sheet1")
-	f.SetActiveSheet(idx)
-
-	headers := []string{"Brinco", "Data", "Qtd. Produzida (L)", "Turno", "Observação"}
-	for i, h := range headers {
-		f.SetCellValue(sheet, cellName(i, 1), h)
-	}
-	applyHeaderStyle(f, sheet, len(headers))
-
-	// Data validation: Turno
-	addDropdown(f, sheet, "D2", "D1000", `"AM,PM,Único"`)
-
-	autoWidth(f, sheet, len(headers))
-
-	if includeRef {
-		e.addRefSheet(ctx, f, propertyID, "F")
-	}
-
-	return f, nil
-}
-
-// GenerateWeightTemplate gera uma planilha vazia de pesagem com validações.
-func (e *Exporter) GenerateWeightTemplate(ctx context.Context, propertyID string, includeRef bool) (*excelize.File, error) {
-	f := excelize.NewFile()
-	sheet := "DADOS"
-	idx, _ := f.NewSheet(sheet)
-	f.DeleteSheet("Sheet1")
-	f.SetActiveSheet(idx)
-
-	headers := []string{"Brinco", "Data", "Peso (kg)", "Método", "Escore Corporal (BCS)", "Observação"}
-	for i, h := range headers {
-		f.SetCellValue(sheet, cellName(i, 1), h)
-	}
-	applyHeaderStyle(f, sheet, len(headers))
-
-	addDropdown(f, sheet, "D2", "D1000", `"Balança,Fita,Estimativa Visual"`)
-
-	autoWidth(f, sheet, len(headers))
-
-	if includeRef {
-		e.addRefSheet(ctx, f, propertyID, "")
-	}
-
-	return f, nil
-}
-
-// GenerateReproductionTemplate gera uma planilha vazia de reprodução com validações.
-func (e *Exporter) GenerateReproductionTemplate(ctx context.Context, propertyID string, includeRef bool) (*excelize.File, error) {
-	f := excelize.NewFile()
-	sheet := "DADOS"
-	idx, _ := f.NewSheet(sheet)
-	f.DeleteSheet("Sheet1")
-	f.SetActiveSheet(idx)
-
-	headers := []string{"Brinco Fêmea", "Brinco Macho", "Data Evento", "Tipo", "Resultado DG", "Observação"}
-	for i, h := range headers {
-		f.SetCellValue(sheet, cellName(i, 1), h)
-	}
-	applyHeaderStyle(f, sheet, len(headers))
-
-	addDropdown(f, sheet, "D2", "D1000", `"MN,IA,IATF,TE"`)
-	addDropdown(f, sheet, "E2", "E1000", `"Positivo,Negativo,Pendente,Inconclusivo"`)
-
-	autoWidth(f, sheet, len(headers))
-
-	if includeRef {
-		e.addRefSheet(ctx, f, propertyID, "")
-	}
-
-	return f, nil
-}
-
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 func cellName(col, row int) string {
@@ -487,13 +414,6 @@ func autoWidth(f *excelize.File, sheet string, numCols int) {
 		col := string(rune('A' + i))
 		f.SetColWidth(sheet, col, col, 20)
 	}
-}
-
-func addDropdown(f *excelize.File, sheet, from, to, formula string) {
-	dv := excelize.NewDataValidation(true)
-	dv.Sqref = fmt.Sprintf("%s:%s", from, to)
-	dv.SetDropList(strings.Split(strings.Trim(formula, `"`), ","))
-	f.AddDataValidation(sheet, dv)
 }
 
 func derefStr(s *string) string {

@@ -1,23 +1,22 @@
 // Package main é o entrypoint do ETL BUFFS.
-// Inicializa HTTP server (Fiber), Asynq worker, PostgreSQL pool e graceful shutdown.
+// Inicializa HTTP server (net/http + Chi), PostgreSQL pool e graceful shutdown.
 package main
 
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/hibiken/asynq"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/jaobarreto/buffs-etl-worker/internal/config"
 	apphttp "github.com/jaobarreto/buffs-etl-worker/internal/http"
 	"github.com/jaobarreto/buffs-etl-worker/internal/job"
-	"github.com/jaobarreto/buffs-etl-worker/internal/loader"
-	"github.com/jaobarreto/buffs-etl-worker/internal/pipeline"
 	"github.com/jaobarreto/buffs-etl-worker/pkg/logger"
 	"go.uber.org/zap"
 )
@@ -32,6 +31,10 @@ func main() {
 	// ── Config ──────────────────────────────────────────────────────────
 	cfg := config.Load()
 
+	if cfg.InternalKey == "" {
+		log.Warn("BUFFS_ETL_INTERNAL_KEY não configurada — endpoints autenticados ficarão inacessíveis")
+	}
+
 	// ── PostgreSQL ──────────────────────────────────────────────────────
 	poolCfg, err := pgxpool.ParseConfig(cfg.DB.URL)
 	if err != nil {
@@ -40,6 +43,7 @@ func main() {
 	poolCfg.MaxConns = cfg.DB.MaxConns
 	poolCfg.MinConns = cfg.DB.MinConns
 	poolCfg.MaxConnLifetime = cfg.DB.MaxConnLifetime
+	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeExec
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
@@ -54,48 +58,32 @@ func main() {
 	}
 	log.Info("PostgreSQL conectado", zap.String("url", maskDSN(cfg.DB.URL)))
 
-	// ── Redis / Asynq ───────────────────────────────────────────────────
-	redisOpt, err := asynq.ParseRedisURI(cfg.Redis.URL)
-	if err != nil {
-		log.Fatal("Falha ao parsear REDIS_URL", zap.Error(err))
-	}
+	// ── Job Store (in-memory) ───────────────────────────────────────────
+	jobs := job.NewStore(log)
 
-	asynqClient := asynq.NewClient(redisOpt)
-	defer asynqClient.Close()
-
-	asynqInspector := asynq.NewInspector(redisOpt)
-	defer asynqInspector.Close()
-
-	log.Info("Redis/Asynq configurado", zap.String("url", cfg.Redis.URL))
-
-	// ── Asynq Worker (background) ──────────────────────────────────────
-	asynqServer := asynq.NewServer(redisOpt, asynq.Config{
-		Concurrency: cfg.Worker.Concurrency,
-		Queues:      map[string]int{"default": 1},
-		Logger:      newAsynqLogger(log),
-	})
-
-	pgLoader := loader.NewPostgresLoader(pool, log)
-	pipelineEngine := pipeline.New(pgLoader, log)
-	processor := job.NewProcessor(pipelineEngine, log)
-
-	mux := asynq.NewServeMux()
-	job.RegisterHandlers(mux, processor)
-
+	// Cleanup periódico de jobs antigos (a cada 30 min, remove jobs >2h)
 	go func() {
-		if err := asynqServer.Run(mux); err != nil {
-			log.Error("Asynq server encerrou com erro", zap.Error(err))
+		ticker := time.NewTicker(30 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			jobs.Cleanup(2 * time.Hour)
 		}
 	}()
-	log.Info("Asynq worker iniciado", zap.Int("concurrency", cfg.Worker.Concurrency))
 
-	// ── HTTP Server (Fiber) ─────────────────────────────────────────────
-	app := apphttp.NewRouter(cfg, pool, asynqClient, asynqInspector, log)
+	// ── HTTP Server (net/http + Chi) ────────────────────────────────────
+	handler := apphttp.NewRouter(cfg, pool, jobs, log)
+
+	addr := fmt.Sprintf(":%d", cfg.Server.Port)
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      handler,
+		ReadTimeout:  cfg.Server.ReadTimeout,
+		WriteTimeout: cfg.Server.WriteTimeout,
+	}
 
 	go func() {
-		addr := fmt.Sprintf(":%d", cfg.Server.Port)
 		log.Info("HTTP server ouvindo", zap.String("addr", addr))
-		if err := app.Listen(addr); err != nil {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal("Falha ao iniciar servidor HTTP", zap.Error(err))
 		}
 	}()
@@ -110,12 +98,7 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer shutdownCancel()
 
-	// Para o worker Asynq
-	asynqServer.Shutdown()
-	log.Info("Asynq worker encerrado")
-
-	// Para o HTTP server
-	if err := app.ShutdownWithContext(shutdownCtx); err != nil {
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Error("Erro no shutdown do HTTP server", zap.Error(err))
 	}
 	log.Info("HTTP server encerrado")
@@ -130,18 +113,3 @@ func maskDSN(dsn string) string {
 	}
 	return dsn
 }
-
-// asynqLogAdapter adapta zap.Logger para a interface asynq.Logger.
-type asynqLogAdapter struct {
-	logger *zap.Logger
-}
-
-func newAsynqLogger(l *zap.Logger) *asynqLogAdapter {
-	return &asynqLogAdapter{logger: l.Named("asynq")}
-}
-
-func (a *asynqLogAdapter) Debug(args ...any) { a.logger.Debug(fmt.Sprint(args...)) }
-func (a *asynqLogAdapter) Info(args ...any)  { a.logger.Info(fmt.Sprint(args...)) }
-func (a *asynqLogAdapter) Warn(args ...any)  { a.logger.Warn(fmt.Sprint(args...)) }
-func (a *asynqLogAdapter) Error(args ...any) { a.logger.Error(fmt.Sprint(args...)) }
-func (a *asynqLogAdapter) Fatal(args ...any) { a.logger.Fatal(fmt.Sprint(args...)) }

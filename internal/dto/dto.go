@@ -1,72 +1,71 @@
+// Package dto contém os Request/Response DTOs para os endpoints HTTP.
 package dto
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-}	Services map[string]string `json:"services"`	Status   string            `json:"status"`type HealthResponse struct {// HealthResponse é a resposta do healthcheck.// ── Health DTOs ─────────────────────────────────────────────────────────────}	Message string `json:"message"`	Code    string `json:"code"`type ErrorResponse struct {// ErrorResponse é a resposta padrão de erro.// ── Error DTOs ──────────────────────────────────────────────────────────────}	Progress int    `json:"progress,omitempty"`	Status   string `json:"status"`	JobID    string `json:"job_id"`type JobStatusResponse struct {// JobStatusResponse é a resposta do endpoint de status de job.// ── Job DTOs ────────────────────────────────────────────────────────────────}	IncludeRef *bool     `query:"include_ref"`	Tipo       string    `query:"tipo"`	To         time.Time `query:"to"`	From       time.Time `query:"from"`	Sex        string    `query:"sex"`	Maturity   string    `query:"maturity"`	GroupID    string    `query:"group_id"`	PropertyID string    `query:"property_id"`type ExportQuery struct {// ExportQuery contém os parâmetros de filtro para exportação.// ── Export DTOs ─────────────────────────────────────────────────────────────}	Status  string `json:"status"`	Message string `json:"message"`	JobID   string `json:"job_id"`type AsyncImportResponse struct {// AsyncImportResponse é retornado quando o import é enfileirado (202).}	Message string `json:"message"`	Value   string `json:"value"`	Field   string `json:"field"`	Row     int    `json:"row"`type RowIssue struct {// RowIssue representa um erro ou warning de uma linha.}	Warnings []RowIssue `json:"warnings"`	Errors   []RowIssue `json:"errors"`	Skipped  int        `json:"skipped"`	Imported int        `json:"imported"`	Total    int        `json:"total_rows"`	JobID    string     `json:"job_id,omitempty"`type ImportResponse struct {// ImportResponse é a resposta de um import (síncrono ou assíncrono).// ── Import DTOs ─────────────────────────────────────────────────────────────import "time"package dto// Package dto contém os Request/Response DTOs para os endpoints HTTP.
+import "time"
+
+// ── Import DTOs ─────────────────────────────────────────────────────────────
+
+// ImportResponse é a resposta de um import síncrono.
+type ImportResponse struct {
+	JobID    string     `json:"job_id,omitempty"`
+	Total    int        `json:"total_rows"`
+	Imported int        `json:"imported"`
+	Skipped  int        `json:"skipped"`
+	Errors   []RowIssue `json:"errors"`
+	Warnings []RowIssue `json:"warnings"`
+}
+
+// RowIssue representa um erro ou warning de uma linha.
+type RowIssue struct {
+	Row     int    `json:"row"`
+	Field   string `json:"field"`
+	Value   string `json:"value"`
+	Message string `json:"message"`
+}
+
+// AsyncImportResponse é retornado quando o import é processado assincronamente (202).
+type AsyncImportResponse struct {
+	JobID   string `json:"job_id"`
+	Message string `json:"message"`
+	Status  string `json:"status"`
+}
+
+// ── Export DTOs ─────────────────────────────────────────────────────────────
+
+// ExportQuery contém os parâmetros de filtro para exportação (nomes em português).
+type ExportQuery struct {
+	PropriedadeID string    `json:"propriedadeId"`
+	GrupoID       string    `json:"grupoId"`
+	Maturidade    string    `json:"maturidade"`
+	Sexo          string    `json:"sexo"`
+	Tipo          string    `json:"tipo"`
+	De            time.Time `json:"de"`
+	Ate           time.Time `json:"ate"`
+	IncludeRef    *bool     `json:"include_ref"`
+}
+
+// ── Job DTOs ────────────────────────────────────────────────────────────────
+
+// JobStatusResponse é a resposta do endpoint de status de job.
+type JobStatusResponse struct {
+	JobID  string          `json:"job_id"`
+	Status string          `json:"status"`
+	Result *ImportResponse `json:"result,omitempty"`
+	Error  string          `json:"error,omitempty"`
+}
+
+// ── Error DTOs ──────────────────────────────────────────────────────────────
+
+// ErrorResponse é a resposta padrão de erro.
+type ErrorResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// ── Health DTOs ─────────────────────────────────────────────────────────────
+
+// HealthResponse é a resposta do healthcheck.
+type HealthResponse struct {
+	Status   string            `json:"status"`
+	Services map[string]string `json:"services"`
+}

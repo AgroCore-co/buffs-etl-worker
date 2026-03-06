@@ -1,28 +1,40 @@
 package middleware
 
 import (
+	"net/http"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
 
 // RequestLogger cria um middleware de logging para cada request.
-func RequestLogger(logger *zap.Logger) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		start := time.Now()
+func RequestLogger(logger *zap.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			sw := &statusWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
-		err := c.Next()
+			next.ServeHTTP(sw, r)
 
-		logger.Info("HTTP Request",
-			zap.String("method", c.Method()),
-			zap.String("path", c.Path()),
-			zap.Int("status", c.Response().StatusCode()),
-			zap.Duration("latency", time.Since(start)),
-			zap.String("ip", c.IP()),
-			zap.String("user_agent", c.Get("User-Agent")),
-		)
-
-		return err
+			logger.Info("HTTP Request",
+				zap.String("method", r.Method),
+				zap.String("path", r.URL.Path),
+				zap.Int("status", sw.statusCode),
+				zap.Duration("latency", time.Since(start)),
+				zap.String("ip", r.RemoteAddr),
+				zap.String("user_agent", r.UserAgent()),
+			)
+		})
 	}
+}
+
+// statusWriter wraps http.ResponseWriter to capture the status code.
+type statusWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (sw *statusWriter) WriteHeader(code int) {
+	sw.statusCode = code
+	sw.ResponseWriter.WriteHeader(code)
 }

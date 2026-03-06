@@ -1,10 +1,11 @@
+// Package handler contém os handlers HTTP do ETL BUFFS.
 package handler
 
 import (
 	"context"
+	"net/http"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jaobarreto/buffs-etl-worker/internal/dto"
 )
@@ -20,11 +21,11 @@ func NewHealthHandler(pool *pgxpool.Pool) *HealthHandler {
 }
 
 // HandleHealth verifica o status dos serviços.
-func (h *HealthHandler) HandleHealth(c *fiber.Ctx) error {
+func (h *HealthHandler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	services := make(map[string]string)
 
 	// PostgreSQL
-	ctx, cancel := context.WithTimeout(c.Context(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
 	if err := h.pool.Ping(ctx); err != nil {
@@ -41,12 +42,12 @@ func (h *HealthHandler) HandleHealth(c *fiber.Ctx) error {
 		}
 	}
 
-	code := fiber.StatusOK
+	code := http.StatusOK
 	if status != "healthy" {
-		code = fiber.StatusServiceUnavailable
+		code = http.StatusServiceUnavailable
 	}
 
-	return c.Status(code).JSON(dto.HealthResponse{
+	writeJSON(w, code, dto.HealthResponse{
 		Status:   status,
 		Services: services,
 	})

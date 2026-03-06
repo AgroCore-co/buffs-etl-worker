@@ -1,190 +1,120 @@
 package handler
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-}	return file.WriteTo(c.Response().BodyWriter())	c.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")	filename := fmt.Sprintf("%s_%s.xlsx", name, timestamp)	timestamp := time.Now().Format("20060102_150405")func (h *ExportHandler) sendExcel(c *fiber.Ctx, file interface{ WriteTo(w interface{ Write([]byte) (int, error) }) error }, name string) error {}	return params, nil	}		}			params.To = t		if t, err := time.Parse("2006-01-02", to); err == nil {	if to := c.Query("to"); to != "" {	}		}			params.From = t		if t, err := time.Parse("2006-01-02", from); err == nil {	if from := c.Query("from"); from != "" {	}		IncludeRef: c.Query("include_ref", "true") == "true",		Tipo:       c.Query("tipo"),		Sex:        c.Query("sex"),		Maturity:   c.Query("maturity"),		GroupID:    c.Query("group_id"),		PropertyID: propertyID,	params := &exporter.ExportParams{	}		})			Code: "FORBIDDEN", Message: "Sem acesso a esta propriedade",		return nil, c.Status(fiber.StatusForbidden).JSON(dto.ErrorResponse{	if !hasAccess {	}		})			Code: "INTERNAL_ERROR", Message: "Erro interno",		return nil, c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{		h.logger.Error("Erro ao verificar acesso", zap.Error(err))	if err != nil {	hasAccess, _, err := h.loader.CheckPropertyAccess(c.Context(), userAuthID, propertyID)	userAuthID := middleware.GetUserAuthID(c)	// Verifica acesso	}		})			Code: "MISSING_PROPERTY_ID", Message: "Query param property_id é obrigatório",		return nil, c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{	if propertyID == "" {	propertyID := c.Query("property_id")func (h *ExportHandler) parseExportParams(c *fiber.Ctx) (*exporter.ExportParams, error) {// ── Helpers ─────────────────────────────────────────────────────────────────}	return h.sendExcel(c, file, "template_reproducao")	}		})			Code: "TEMPLATE_ERROR", Message: "Falha ao gerar template",		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{	if err != nil {	file, err := h.exporter.GenerateReproductionTemplate(c.Context(), params.PropertyID, params.IncludeRef)	}		return err	if err != nil {	params, err := h.parseExportParams(c)func (h *ExportHandler) HandleTemplateReproduction(c *fiber.Ctx) error {// HandleTemplateReproduction gera template vazio de reprodução.}	return h.sendExcel(c, file, "template_pesagem")	}		})			Code: "TEMPLATE_ERROR", Message: "Falha ao gerar template",		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{	if err != nil {	file, err := h.exporter.GenerateWeightTemplate(c.Context(), params.PropertyID, params.IncludeRef)	}		return err	if err != nil {	params, err := h.parseExportParams(c)func (h *ExportHandler) HandleTemplateWeight(c *fiber.Ctx) error {// HandleTemplateWeight gera template vazio de pesagem.}	return h.sendExcel(c, file, "template_leite")	}		})			Code: "TEMPLATE_ERROR", Message: "Falha ao gerar template",		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{	if err != nil {	file, err := h.exporter.GenerateMilkTemplate(c.Context(), params.PropertyID, params.IncludeRef)	}		return err	if err != nil {	params, err := h.parseExportParams(c)func (h *ExportHandler) HandleTemplateMilk(c *fiber.Ctx) error {// HandleTemplateMilk gera template vazio de leite.}	return h.sendExcel(c, file, "reproducao")	}		})			Code: "EXPORT_ERROR", Message: "Falha ao gerar planilha de reprodução",		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{		h.logger.Error("Erro ao exportar reprodução", zap.Error(err))	if err != nil {	file, err := h.exporter.ExportReproduction(c.Context(), *params)	}		return err	if err != nil {	params, err := h.parseExportParams(c)func (h *ExportHandler) HandleExportReproduction(c *fiber.Ctx) error {// HandleExportReproduction exporta planilha de reprodução.}	return h.sendExcel(c, file, "pesagem_animal")	}		})			Code: "EXPORT_ERROR", Message: "Falha ao gerar planilha de pesagem",		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{		h.logger.Error("Erro ao exportar pesagem", zap.Error(err))	if err != nil {	file, err := h.exporter.ExportWeight(c.Context(), *params)	}		return err	if err != nil {	params, err := h.parseExportParams(c)func (h *ExportHandler) HandleExportWeight(c *fiber.Ctx) error {// HandleExportWeight exporta planilha de pesagem do animal.}	return h.sendExcel(c, file, "pesagem_leite")	}		})			Code: "EXPORT_ERROR", Message: "Falha ao gerar planilha de leite",		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{		h.logger.Error("Erro ao exportar leite", zap.Error(err))	if err != nil {	file, err := h.exporter.ExportMilk(c.Context(), *params)	}		return err	if err != nil {	params, err := h.parseExportParams(c)func (h *ExportHandler) HandleExportMilk(c *fiber.Ctx) error {// HandleExportMilk exporta planilha de pesagem de leite.}	return &ExportHandler{exporter: exp, loader: l, logger: logger}func NewExportHandler(exp *exporter.Exporter, l *loader.PostgresLoader, logger *zap.Logger) *ExportHandler {// NewExportHandler cria um handler de export.}	logger   *zap.Logger	loader   *loader.PostgresLoader	exporter *exporter.Exportertype ExportHandler struct {// ExportHandler gerencia endpoints de exportação de planilhas.)	"go.uber.org/zap"	"github.com/jaobarreto/buffs-etl-worker/internal/loader"	"github.com/jaobarreto/buffs-etl-worker/internal/http/middleware"	"github.com/jaobarreto/buffs-etl-worker/internal/exporter"	"github.com/jaobarreto/buffs-etl-worker/internal/dto"	"github.com/gofiber/fiber/v2"	"time"	"fmt"import (package handler
+import (
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/jaobarreto/buffs-etl-worker/internal/dto"
+	"github.com/jaobarreto/buffs-etl-worker/internal/exporter"
+	"github.com/xuri/excelize/v2"
+	"go.uber.org/zap"
+)
+
+// ExportHandler gerencia endpoints de exportação de planilhas.
+type ExportHandler struct {
+	exporter *exporter.Exporter
+	logger   *zap.Logger
+}
+
+// NewExportHandler cria um handler de export.
+func NewExportHandler(exp *exporter.Exporter, logger *zap.Logger) *ExportHandler {
+	return &ExportHandler{exporter: exp, logger: logger}
+}
+
+// HandleExportMilk exporta planilha de pesagem de leite.
+func (h *ExportHandler) HandleExportMilk(w http.ResponseWriter, r *http.Request) {
+	params, ok := h.parseExportParams(w, r)
+	if !ok {
+		return
+	}
+	file, err := h.exporter.ExportMilk(r.Context(), *params)
+	if err != nil {
+		h.logger.Error("Erro ao exportar leite", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, dto.ErrorResponse{
+			Code: "EXPORT_ERROR", Message: "Falha ao gerar planilha de leite",
+		})
+		return
+	}
+	h.sendExcel(w, file, "pesagem_leite")
+}
+
+// HandleExportWeight exporta planilha de pesagem do animal.
+func (h *ExportHandler) HandleExportWeight(w http.ResponseWriter, r *http.Request) {
+	params, ok := h.parseExportParams(w, r)
+	if !ok {
+		return
+	}
+	file, err := h.exporter.ExportWeight(r.Context(), *params)
+	if err != nil {
+		h.logger.Error("Erro ao exportar pesagem", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, dto.ErrorResponse{
+			Code: "EXPORT_ERROR", Message: "Falha ao gerar planilha de pesagem",
+		})
+		return
+	}
+	h.sendExcel(w, file, "pesagem_animal")
+}
+
+// HandleExportReproduction exporta planilha de dados reprodutivos.
+func (h *ExportHandler) HandleExportReproduction(w http.ResponseWriter, r *http.Request) {
+	params, ok := h.parseExportParams(w, r)
+	if !ok {
+		return
+	}
+	file, err := h.exporter.ExportReproduction(r.Context(), *params)
+	if err != nil {
+		h.logger.Error("Erro ao exportar reprodução", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, dto.ErrorResponse{
+			Code: "EXPORT_ERROR", Message: "Falha ao gerar planilha de reprodução",
+		})
+		return
+	}
+	h.sendExcel(w, file, "reproducao")
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+// parseExportParams extrai os filtros da query string (nomes em português).
+// BUFFS API já validou auth/permissões — aqui só faz parsing.
+func (h *ExportHandler) parseExportParams(w http.ResponseWriter, r *http.Request) (*exporter.ExportParams, bool) {
+	propertyID := r.URL.Query().Get("propriedadeId")
+	if propertyID == "" {
+		writeJSON(w, http.StatusBadRequest, dto.ErrorResponse{
+			Code: "MISSING_PROPERTY_ID", Message: "Query param propriedadeId é obrigatório",
+		})
+		return nil, false
+	}
+
+	params := &exporter.ExportParams{
+		PropertyID: propertyID,
+		GroupID:    r.URL.Query().Get("grupoId"),
+		Maturity:   r.URL.Query().Get("maturidade"),
+		Sex:        r.URL.Query().Get("sexo"),
+		Tipo:       r.URL.Query().Get("tipo"),
+		IncludeRef: r.URL.Query().Get("include_ref") != "false",
+	}
+
+	if de := r.URL.Query().Get("de"); de != "" {
+		if t, err := time.Parse("2006-01-02", de); err == nil {
+			params.From = t
+		}
+	}
+	if ate := r.URL.Query().Get("ate"); ate != "" {
+		if t, err := time.Parse("2006-01-02", ate); err == nil {
+			// Inclui o dia inteiro: avança para início do dia seguinte
+			params.To = t.AddDate(0, 0, 1)
+		}
+	}
+
+	return params, true
+}
+
+func (h *ExportHandler) sendExcel(w http.ResponseWriter, file *excelize.File, name string) {
+	timestamp := time.Now().Format("20060102_150405")
+	filename := fmt.Sprintf("%s_%s.xlsx", name, timestamp)
+
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	file.Write(w)
+}

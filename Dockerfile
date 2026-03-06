@@ -2,6 +2,7 @@
 # ETL BUFFS - Dockerfile (Go)
 # ========================================
 # Multi-stage build para imagem otimizada.
+# Sem Redis — worker in-memory.
 # ========================================
 
 # ------ ESTÁGIO 1: BUILD ------
@@ -11,7 +12,7 @@ WORKDIR /build
 
 RUN apk add --no-cache git ca-certificates tzdata
 
-COPY go.mod go.sum ./
+COPY go.mod ./
 RUN go mod download
 
 COPY cmd ./cmd

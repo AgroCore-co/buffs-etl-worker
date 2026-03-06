@@ -36,7 +36,18 @@ type RunParams struct {
 }
 
 // Run executa o pipeline ETL completo e retorna o resultado.
-func (p *Pipeline) Run(ctx context.Context, params RunParams) (*domain.ImportResult, error) {
+func (p *Pipeline) Run(ctx context.Context, params RunParams) (res *domain.ImportResult, runErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			p.logger.Error("PANIC no pipeline ETL",
+				zap.String("type", string(params.Type)),
+				zap.Any("panic", r),
+				zap.Stack("stack"),
+			)
+			runErr = apperror.Internal(fmt.Sprintf("panic no pipeline: %v", r), nil)
+		}
+	}()
+
 	p.logger.Info("Iniciando pipeline ETL",
 		zap.String("type", string(params.Type)),
 		zap.String("file", params.FilePath),
@@ -86,6 +97,7 @@ func (p *Pipeline) Run(ctx context.Context, params RunParams) (*domain.ImportRes
 	}
 
 	// ── 4. Validate ─────────────────────────────────────────────────────
+	p.logger.Info("Iniciando validação", zap.Int("rows", len(mappedRows)), zap.String("type", string(params.Type)))
 	valResult := validator.Validate(mappedRows, 2, params.Type, lookup)
 
 	for _, e := range valResult.Errors {
