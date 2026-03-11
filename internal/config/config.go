@@ -62,7 +62,8 @@ func Load() *Config {
 			WriteTimeout: writeTimeout,
 		},
 		DB: DBConfig{
-			URL:             envOrDefault("BUFFS_ETL_DB_URL", "postgresql://postgres:postgres@localhost:5432/buffs_db"),
+			// Fallback: BUFFS_ETL_DB_URL → DATABASE_URL (compartilhado com a API NestJS)
+			URL:             envOrDefaultChain("BUFFS_ETL_DB_URL", "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/buffs_db"),
 			MaxConns:        int32(envInt("BUFFS_ETL_DB_MAX_CONNS", 20)),
 			MinConns:        int32(envInt("BUFFS_ETL_DB_MIN_CONNS", 5)),
 			MaxConnLifetime: connLifetime,
@@ -77,8 +78,20 @@ func Load() *Config {
 		Worker: WorkerConfig{
 			AsyncThreshold: envInt("BUFFS_ETL_ASYNC_THRESHOLD", 1000),
 		},
-		InternalKey: envOrDefault("BUFFS_ETL_INTERNAL_KEY", ""),
+		// Fallback: BUFFS_ETL_INTERNAL_KEY → ETL_INTERNAL_KEY (compartilhado com a API)
+		InternalKey: envOrDefaultChain("BUFFS_ETL_INTERNAL_KEY", "ETL_INTERNAL_KEY", ""),
 	}
+}
+
+// envOrDefaultChain tenta a variável primária, depois a secundária, depois o fallback.
+func envOrDefaultChain(primary, secondary, fallback string) string {
+	if v := os.Getenv(primary); v != "" {
+		return v
+	}
+	if v := os.Getenv(secondary); v != "" {
+		return v
+	}
+	return fallback
 }
 
 func envOrDefault(key, fallback string) string {
