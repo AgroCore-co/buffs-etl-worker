@@ -87,7 +87,7 @@ make dev
 
 | Variável | Descrição | Default |
 |---|---|---|
-| `BUFFS_ETL_PORT` | Porta HTTP | `3001` |
+| `BUFFS_ETL_PORT` | Porta HTTP | `8081` |
 | `BUFFS_ETL_INTERNAL_KEY` | Chave inter-serviço | — |
 | `BUFFS_ETL_DB_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/buffs_db` |
 | `BUFFS_ETL_DB_MAX_CONNS` | Conexões máximas | `20` |

@@ -38,9 +38,9 @@ RUN addgroup -g 1000 etl && adduser -D -u 1000 -G etl etl
 RUN chown -R etl:etl /app
 USER etl
 
-EXPOSE 3001
+EXPOSE 8081
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8081/health || exit 1
 
 CMD ["/app/etl-server"]

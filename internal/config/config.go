@@ -57,7 +57,7 @@ func Load() *Config {
 
 	return &Config{
 		Server: ServerConfig{
-			Port:         envInt("BUFFS_ETL_PORT", 3001),
+			Port:         envInt("BUFFS_ETL_PORT", 8081),
 			ReadTimeout:  readTimeout,
 			WriteTimeout: writeTimeout,
 		},

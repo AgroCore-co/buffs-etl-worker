@@ -14,10 +14,10 @@ services:
     container_name: etl-buffs
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "8081:8081"
     environment:
       - BUFFS_ETL_ENV=production
-      - BUFFS_ETL_PORT=3001
+      - BUFFS_ETL_PORT=8081
       - BUFFS_ETL_DB_URL=${BUFFS_ETL_DB_URL}
       - BUFFS_ETL_INTERNAL_KEY=${BUFFS_ETL_INTERNAL_KEY}
       - BUFFS_ETL_TEMP_DIR=/app/temp/uploads
