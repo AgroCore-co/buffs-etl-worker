@@ -1,4 +1,3 @@
-// Package middleware contém os middlewares HTTP do ETL BUFFS.
 package middleware
 
 import (
@@ -15,20 +14,11 @@ func InternalKeyAuth(key string, logger *zap.Logger) func(http.Handler) http.Han
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			provided := r.Header.Get("X-Internal-Key")
 
-			if provided == "" {
-				logger.Debug("Requisição sem X-Internal-Key")
+			if provided == "" || provided != key {
+				logger.Warn("X-Internal-Key ausente ou inválida")
 				writeJSON(w, http.StatusUnauthorized, dto.ErrorResponse{
 					Code:    "UNAUTHORIZED",
-					Message: "Header X-Internal-Key não fornecido",
-				})
-				return
-			}
-
-			if provided != key {
-				logger.Warn("X-Internal-Key inválida")
-				writeJSON(w, http.StatusUnauthorized, dto.ErrorResponse{
-					Code:    "UNAUTHORIZED",
-					Message: "X-Internal-Key inválida",
+					Message: "Header X-Internal-Key ausente ou inválido",
 				})
 				return
 			}

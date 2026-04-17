@@ -1,5 +1,3 @@
-// Package main é o entrypoint do ETL BUFFS.
-// Inicializa HTTP server (net/http + Chi), PostgreSQL pool e graceful shutdown.
 package main
 
 import (
@@ -32,7 +30,7 @@ func main() {
 	cfg := config.Load()
 
 	if cfg.InternalKey == "" {
-		log.Warn("BUFFS_ETL_INTERNAL_KEY não configurada — endpoints autenticados ficarão inacessíveis")
+		log.Fatal("BUFFS_ETL_INTERNAL_KEY não configurada — abortando inicialização")
 	}
 
 	// ── PostgreSQL ──────────────────────────────────────────────────────
@@ -58,10 +56,11 @@ func main() {
 	}
 	log.Info("PostgreSQL conectado", zap.String("url", maskDSN(cfg.DB.URL)))
 
-	// ── Job Store (in-memory) ───────────────────────────────────────────
-	jobs := job.NewStore(log)
+	jobs, err := job.NewStore(context.Background(), pool, log)
+	if err != nil {
+		log.Fatal("Falha ao inicializar job store", zap.Error(err))
+	}
 
-	// Cleanup periódico de jobs antigos (a cada 30 min, remove jobs >2h)
 	go func() {
 		ticker := time.NewTicker(30 * time.Minute)
 		defer ticker.Stop()

@@ -1,11 +1,16 @@
 package handler
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/jaobarreto/buffs-etl-worker/internal/config"
@@ -17,6 +22,8 @@ import (
 	"github.com/jaobarreto/buffs-etl-worker/pkg/apperror"
 	"go.uber.org/zap"
 )
+
+var propriedadeUUIDRegex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
 
 // ImportHandler gerencia endpoints de importação de planilhas.
 type ImportHandler struct {
@@ -54,6 +61,13 @@ func (h *ImportHandler) HandleImport(pipelineType mapper.PipelineType) http.Hand
 			})
 			return
 		}
+		if !propriedadeUUIDRegex.MatchString(propertyID) {
+			writeJSON(w, http.StatusBadRequest, dto.ErrorResponse{
+				Code:    "INVALID_PROPERTY_ID",
+				Message: "Query param propriedadeId inválido",
+			})
+			return
+		}
 
 		userID := r.URL.Query().Get("usuarioId")
 		if userID == "" {
@@ -65,7 +79,16 @@ func (h *ImportHandler) HandleImport(pipelineType mapper.PipelineType) http.Hand
 		}
 
 		// 2. Recebe o arquivo (multipart/form-data, campo "file")
-		if err := r.ParseMultipartForm(h.cfg.Upload.MaxFileSize + 1024*1024); err != nil {
+		r.Body = http.MaxBytesReader(w, r.Body, h.cfg.Upload.MaxFileSize+1024*1024)
+		if err := r.ParseMultipartForm(h.cfg.Upload.MaxFileSize); err != nil {
+			if isMultipartTooLarge(err) {
+				writeJSON(w, http.StatusBadRequest, dto.ErrorResponse{
+					Code:    string(apperror.CodeFileTooLarge),
+					Message: fmt.Sprintf("Arquivo excede o limite de %dMB", h.cfg.Upload.MaxFileSize/(1024*1024)),
+				})
+				return
+			}
+
 			writeJSON(w, http.StatusBadRequest, dto.ErrorResponse{
 				Code:    "MISSING_FILE",
 				Message: "Arquivo Excel não enviado. Use multipart/form-data com campo 'file'.",
@@ -93,7 +116,7 @@ func (h *ImportHandler) HandleImport(pipelineType mapper.PipelineType) http.Hand
 		}
 
 		// 4. Valida extensão
-		ext := filepath.Ext(header.Filename)
+		ext := strings.ToLower(filepath.Ext(header.Filename))
 		if ext != ".xlsx" && ext != ".xls" {
 			writeJSON(w, http.StatusBadRequest, dto.ErrorResponse{
 				Code:    string(apperror.CodeInvalidFormat),
@@ -103,7 +126,14 @@ func (h *ImportHandler) HandleImport(pipelineType mapper.PipelineType) http.Hand
 		}
 
 		// 5. Salva em disco temporário
-		os.MkdirAll(h.cfg.Upload.TempDir, 0755)
+		if err := os.MkdirAll(h.cfg.Upload.TempDir, 0755); err != nil {
+			h.logger.Error("Falha ao criar diretório temporário", zap.Error(err))
+			writeJSON(w, http.StatusInternalServerError, dto.ErrorResponse{
+				Code:    "INTERNAL_ERROR",
+				Message: "Falha ao preparar armazenamento temporário",
+			})
+			return
+		}
 		fileName := fmt.Sprintf("%s_%d%s", propertyID, time.Now().UnixMilli(), ext)
 		filePath := filepath.Join(h.cfg.Upload.TempDir, fileName)
 
@@ -128,6 +158,15 @@ func (h *ImportHandler) HandleImport(pipelineType mapper.PipelineType) http.Hand
 		}
 		dst.Close()
 
+		if err := validateExcelMagicBytes(filePath, ext); err != nil {
+			os.Remove(filePath)
+			writeJSON(w, http.StatusBadRequest, dto.ErrorResponse{
+				Code:    "INVALID_FILE_TYPE",
+				Message: "Arquivo inválido para o tipo Excel informado",
+			})
+			return
+		}
+
 		// 6. Conta linhas para decidir sync vs async
 		rowCount, err := extractor.RowCount(filePath)
 		if err != nil {
@@ -141,7 +180,16 @@ func (h *ImportHandler) HandleImport(pipelineType mapper.PipelineType) http.Hand
 
 		// 7. Processamento assíncrono para arquivos grandes
 		if rowCount > h.cfg.Worker.AsyncThreshold {
-			jobID := h.jobs.Create(filePath, pipelineType, propertyID, userID)
+			jobID, err := h.jobs.Create(filePath, pipelineType, propertyID, userID)
+			if err != nil {
+				os.Remove(filePath)
+				h.logger.Error("Falha ao criar job assíncrono", zap.Error(err))
+				writeJSON(w, http.StatusInternalServerError, dto.ErrorResponse{
+					Code:    "INTERNAL_ERROR",
+					Message: "Falha ao criar job para processamento assíncrono",
+				})
+				return
+			}
 
 			go h.jobs.Process(jobID, h.pipeline)
 
@@ -203,4 +251,39 @@ func (h *ImportHandler) HandleImport(pipelineType mapper.PipelineType) http.Hand
 
 		writeJSON(w, http.StatusOK, resp)
 	}
+}
+
+func isMultipartTooLarge(err error) bool {
+	var maxBytesErr *http.MaxBytesError
+	return errors.As(err, &maxBytesErr) || errors.Is(err, multipart.ErrMessageTooLarge)
+}
+
+func validateExcelMagicBytes(filePath, ext string) error {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	buf := make([]byte, 8)
+	n, err := f.Read(buf)
+	if err != nil && err != io.EOF {
+		return err
+	}
+	buf = buf[:n]
+
+	switch ext {
+	case ".xlsx":
+		if !bytes.HasPrefix(buf, []byte{0x50, 0x4B, 0x03, 0x04}) {
+			return fmt.Errorf("arquivo .xlsx sem magic bytes ZIP")
+		}
+	case ".xls":
+		if !bytes.HasPrefix(buf, []byte{0xD0, 0xCF, 0x11, 0xE0}) {
+			return fmt.Errorf("arquivo .xls sem magic bytes OLE")
+		}
+	default:
+		return fmt.Errorf("extensão não suportada: %s", ext)
+	}
+
+	return nil
 }

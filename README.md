@@ -27,7 +27,7 @@ ETL Worker (Go + Chi)
 | DB | pgx/v5 (COPY protocol) |
 | Excel | excelize/v2 |
 | Logs | zap (structured) |
-| Jobs assíncronos | goroutine + sync.Map (in-memory) |
+| Jobs assíncronos | goroutine + PostgreSQL (persistente) |
 
 ## Endpoints
 
@@ -71,6 +71,8 @@ Excel → Extractor → Mapper → Validator → Transformer → Loader (COPY)
 
 Arquivos com mais de `BUFFS_ETL_ASYNC_THRESHOLD` linhas (default: 1000) são processados em background via goroutine. O cliente recebe um `job_id` (HTTP 202) e pode consultar o status em `GET /jobs/{id}/status`.
 
+**Persistência:** metadados e resultados dos jobs são armazenados no PostgreSQL. Em reinício/crash, jobs que estavam em `PROCESSING` são marcados como `FAILED` na inicialização para evitar estados pendentes indefinidos.
+
 ## Setup
 
 ```bash
@@ -111,7 +113,7 @@ internal/
     handler/                 # Handlers HTTP (import, export, health, job)
     middleware/               # Auth (X-Internal-Key), request logging
     router.go                # Chi router com todas as rotas
-  job/                       # Job store in-memory (goroutine)
+  job/                       # Job store persistente em PostgreSQL
   loader/                    # PostgreSQL COPY loader
   mapper/                    # Normalização de cabeçalhos Excel
   pipeline/                  # Orquestração Extract→Map→Validate→Transform→Load
